@@ -5,7 +5,7 @@ use warnings;
 use v5.10.1;
 use utf8;
 
-our $VERSION = 'v0.0.3';
+our $VERSION = 'v0.0.4';
 
 use Carp;
 use autodie;
@@ -270,6 +270,10 @@ sub _parse {
 
     if ( ! $result->{version} ) {
         $result->{version}{number} = 12;    # Default tap version is '12'.
+    }
+
+    if ( ! $result->{plan} ) {
+        $result->{plan}{number} = undef;
     }
 
     return $result;
