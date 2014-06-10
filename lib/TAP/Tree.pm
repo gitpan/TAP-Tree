@@ -5,7 +5,7 @@ use warnings;
 use v5.10.1;
 use utf8;
 
-our $VERSION = 'v0.0.4';
+our $VERSION = 'v0.0.5';
 
 use Carp;
 use autodie;
@@ -220,19 +220,11 @@ sub _parse {
         }
 
         # tap version
-        if ( $line =~ /^TAP version (\d+)$/ ) {
 
-            if ( $result->{version}{number} ) {
-                croak "Invalid TAP sequence. TAP version is already specified.";
-            }
-
-            $result->{version} = {
-                str     => $line,
-                number  => $1,
-            };
-
-            next;
-        }
+        # Deleted the parsing code for the version of tha TAP.
+        # Since a specified of a version is unnecessary
+        # for the version lower than 12
+        # It is due to add when supporting version 13.
 
         # plan
         if ( $line =~ /^(\s*)1\.\.\d+(\s#.*)?$/ ) {
@@ -269,7 +261,7 @@ sub _parse {
     }
 
     if ( ! $result->{version} ) {
-        $result->{version}{number} = 12;    # Default tap version is '12'.
+        $result->{version}{number} = 12;    # Default tap version is '12' now.
     }
 
     if ( ! $result->{plan} ) {
@@ -354,55 +346,50 @@ sub _parse_subtest {
     return unless $subtest_ref;
     return unless @{ $subtest_ref };
 
-    my $str = shift @{ $subtest_ref };
-
-    my ( $indent, $line );
-    {
-        $str =~ /^(\s+)(.*)/;
-        $indent  = length( $1 );
-        $line    = $2;
-    }
-
     my $subtest_result = {
         plan        => undef,
         testline    => [],
         subtest     => undef,
     };
 
-    $self->_parse_subtest_line( $line, $subtest_result );
+    my $indent;
+    {
+        $subtest_ref->[-1] =~ /^(\s+).*/;
+        $indent = length( $1 );
+    }
 
     my @subtest_more;
     while( @{ $subtest_ref } ) {
         my $subtest_line = shift @{ $subtest_ref };
 
-        my ( $sub_indent, $sub_line );
+        my ( $indent_current, $line );
         {
-            $subtest_line =~ /^(\s+)(.*)/;
-            $sub_indent = length( $1 );
-            $sub_line   = $2;
+            $subtest_line   =~ /^(\s+)(.*)/;
+            $indent_current = length( $1 );
+            $line           = $2;
         }
 
-        if ( $sub_indent > $indent ) {
-            unshift @subtest_more, $subtest_line;
+        if ( $indent_current > $indent ) {
+            push @subtest_more, $subtest_line;
             next;
         }
 
-        $self->_parse_subtest_line( $sub_line, $subtest_result, \@subtest_more );
+        # parse plan
+        if ( $line =~ /^1\.\.\d+/ ) {
+            $subtest_result->{plan} = $self->_parse_plan( $line );
+            next;
+        }
+
+        # parse testline
+        if ( $line =~ /^(not )?ok/ ) {
+            my $subtest = $self->_parse_subtest( \@subtest_more );
+            push @{ $subtest_result->{testline} },
+                 $self->_parse_testline( $line, $subtest );
+            next;
+        }
     }
 
     return $subtest_result;
-}
-
-sub _parse_subtest_line {
-    my ( $self, $line, $subtest_result, $subtest_more_ref ) = @_;
-
-    if ( $line =~ /^1\.\.\d+/ ) {
-        $subtest_result->{plan} = $self->_parse_plan( $line );
-    } elsif ( $line =~ /^(not )?ok/ ) {
-        my $subtest = $self->_parse_subtest( $subtest_more_ref );
-        push @{ $subtest_result->{testline} },
-             $self->_parse_testline( $line, $subtest );
-    }
 }
 
 1;
